@@ -327,6 +327,16 @@ static struct snd_soc_jack_pin hs_jack_pins[] = {
 	},
 };
 
+/* Headset jack detection gpios */
+static struct snd_soc_jack_gpio hs_jack_gpios[] = {
+	{
+		.gpio = 0,
+		.name = "hsdet-gpio",
+		.report = SND_JACK_HEADSET,
+		.debounce_time = 200,
+	},
+};
+
 static int sdp4430_get_power_mode(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -480,6 +490,11 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 
 	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
 				hs_jack_pins);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
+		hs_jack_gpios);
 
 	if (machine_is_omap_4430sdp())
 		twl6040_hs_jack_detect(codec, &hs_jack, SND_JACK_HEADSET);
