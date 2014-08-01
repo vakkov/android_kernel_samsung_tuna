@@ -46,6 +46,7 @@
 #include "../../../arch/arm/mach-omap2/board-tuna.h"
 
 #define TUNA_MAIN_MIC_GPIO  48
+#define GPIO_EAR_MICBIAS_EN 49
 #define TUNA_SUB_MIC_GPIO   171
 
 static int twl6040_power_mode;
@@ -315,18 +316,6 @@ static int mcbsp_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 /* Headset jack */
 static struct snd_soc_jack hs_jack;
 
-/*Headset jack detection DAPM pins */
-static struct snd_soc_jack_pin hs_jack_pins[] = {
-	{
-		.pin = "Headset Mic",
-		.mask = SND_JACK_MICROPHONE,
-	},
-	{
-		.pin = "Headset Stereophone",
-		.mask = SND_JACK_HEADPHONE,
-	},
-};
-
 /* Headset jack detection gpios */
 static struct snd_soc_jack_gpio hs_jack_gpios[] = {
 	{
@@ -433,6 +422,18 @@ static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 	return omap_abe_set_dl1_output(output);
 }
 
+static int sdp4430_jack_notifier(struct notifier_block *self,
+                                unsigned long action, void *dev)
+{
+	//pr_err("Tuna: headset jack state changed. Action: %lu", action);
+	gpio_set_value(GPIO_EAR_MICBIAS_EN, action == 0);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block sdp4430_jack_detect_nb = {
+        .notifier_call = sdp4430_jack_notifier,
+};
+
 static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
@@ -488,18 +489,12 @@ static int sdp4430_twl6040_init(struct snd_soc_pcm_runtime *rtd)
 	if (ret)
 		return ret;
 
-	ret = snd_soc_jack_add_pins(&hs_jack, ARRAY_SIZE(hs_jack_pins),
-				hs_jack_pins);
-	if (ret)
-		return ret;
+	snd_soc_jack_notifier_register(&hs_jack, &sdp4430_jack_detect_nb);
 
 	ret = snd_soc_jack_add_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
-		hs_jack_gpios);
+				hs_jack_gpios);
 
-	if (machine_is_omap_4430sdp())
-		twl6040_hs_jack_detect(codec, &hs_jack, SND_JACK_HEADSET);
-	else
-		snd_soc_jack_report(&hs_jack, SND_JACK_HEADSET, SND_JACK_HEADSET);
+	twl6040_hs_jack_detect(codec, &hs_jack, SND_JACK_HEADSET);
 
 	/* DC offset cancellation computation */
 	hsotrim = snd_soc_read(codec, TWL6040_REG_HSOTRIM);
